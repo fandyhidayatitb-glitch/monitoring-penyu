@@ -1,0 +1,2226 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SiPenyu — Monitoring Konservasi Penyu</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ocean-deep: #0a1628;
+    --ocean-mid: #0d2240;
+    --ocean-teal: #0f4c75;
+    --ocean-bright: #1b6ca8;
+    --seafoam: #38b4a0;
+    --coral: #ff6b6b;
+    --sand: #f5e6c8;
+    --sand-dark: #e8d5a3;
+    --turtle-green: #2d8a4e;
+    --hatch-gold: #f4c430;
+    --alert-red: #e74c3c;
+    --text-primary: #f0f4f8;
+    --text-muted: #8ba4bc;
+    --card-bg: rgba(15, 76, 117, 0.25);
+    --card-border: rgba(56, 180, 160, 0.2);
+    --glass: rgba(255,255,255,0.04);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--ocean-deep);
+    color: var(--text-primary);
+    font-family: 'Outfit', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Animated ocean background */
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: 
+      radial-gradient(ellipse at 20% 50%, rgba(15,76,117,0.4) 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 20%, rgba(56,180,160,0.15) 0%, transparent 50%),
+      radial-gradient(ellipse at 60% 80%, rgba(27,108,168,0.2) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wave-bg {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    height: 200px;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 200'%3E%3Cpath fill='rgba(56,180,160,0.05)' d='M0,100 C360,160 720,40 1080,100 C1260,130 1380,80 1440,100 L1440,200 L0,200 Z'/%3E%3C/svg%3E") repeat-x bottom;
+    pointer-events: none;
+    z-index: 0;
+    animation: waveDrift 12s ease-in-out infinite alternate;
+  }
+
+  @keyframes waveDrift { from { background-position-x: 0; } to { background-position-x: 200px; } }
+
+  /* Layout */
+  .app-container { position: relative; z-index: 1; }
+
+  /* Top bar */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 32px;
+    background: rgba(10,22,40,0.8);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--card-border);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .brand-icon {
+    width: 42px; height: 42px;
+    background: linear-gradient(135deg, var(--seafoam), var(--ocean-teal));
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+  }
+
+  .brand-text h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 20px;
+    color: var(--seafoam);
+    letter-spacing: -0.5px;
+  }
+
+  .brand-text p {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 400;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  .topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .status-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid;
+  }
+
+  .status-badge.connected { background: rgba(45,138,78,0.15); border-color: rgba(45,138,78,0.4); color: #5dd47c; }
+  .status-badge.disconnected { background: rgba(231,76,60,0.15); border-color: rgba(231,76,60,0.4); color: #ff8a7a; }
+  .status-badge.syncing { background: rgba(244,196,48,0.15); border-color: rgba(244,196,48,0.4); color: var(--hatch-gold); }
+
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+
+  .last-sync {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: 'DM Mono', monospace;
+  }
+
+  .btn {
+    padding: 8px 18px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-family: 'Outfit', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.2s;
+    display: flex; align-items: center; gap: 6px;
+  }
+
+  .btn-primary { background: var(--seafoam); color: var(--ocean-deep); }
+  .btn-primary:hover { background: #4fd1bb; transform: translateY(-1px); }
+  .btn-ghost { background: var(--glass); border: 1px solid var(--card-border); color: var(--text-primary); }
+  .btn-ghost:hover { background: rgba(56,180,160,0.1); }
+
+  /* Navigation tabs */
+  .nav-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 16px 32px 0;
+    border-bottom: 1px solid var(--card-border);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .nav-tab {
+    padding: 10px 20px;
+    border-radius: 8px 8px 0 0;
+    border: 1px solid transparent;
+    border-bottom: none;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-muted);
+    background: transparent;
+    transition: all 0.2s;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .nav-tab.active {
+    background: var(--card-bg);
+    border-color: var(--card-border);
+    color: var(--seafoam);
+  }
+
+  .nav-tab:hover:not(.active) { color: var(--text-primary); }
+
+  .tab-badge {
+    background: var(--seafoam);
+    color: var(--ocean-deep);
+    border-radius: 10px;
+    padding: 1px 7px;
+    font-size: 10px;
+    font-weight: 700;
+  }
+
+  /* Main content */
+  .main { padding: 28px 32px; }
+
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* KPI Cards */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+
+  .kpi-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    padding: 20px;
+    backdrop-filter: blur(8px);
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.2s, border-color 0.2s;
+  }
+
+  .kpi-card:hover { transform: translateY(-2px); border-color: rgba(56,180,160,0.4); }
+
+  .kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0; right: 0;
+    width: 80px; height: 80px;
+    border-radius: 0 0 0 80px;
+    opacity: 0.08;
+  }
+
+  .kpi-card.nests::before { background: var(--seafoam); }
+  .kpi-card.eggs::before { background: var(--hatch-gold); }
+  .kpi-card.hatchlings::before { background: var(--turtle-green); }
+  .kpi-card.released::before { background: var(--ocean-bright); }
+  .kpi-card.alerts::before { background: var(--coral); }
+
+  .kpi-icon { font-size: 24px; margin-bottom: 10px; }
+  .kpi-value {
+    font-family: 'DM Serif Display', serif;
+    font-size: 36px;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .kpi-card.nests .kpi-value { color: var(--seafoam); }
+  .kpi-card.eggs .kpi-value { color: var(--hatch-gold); }
+  .kpi-card.hatchlings .kpi-value { color: #5dd47c; }
+  .kpi-card.released .kpi-value { color: #74b9ff; }
+  .kpi-card.alerts .kpi-value { color: var(--coral); }
+
+  .kpi-label { font-size: 12px; color: var(--text-muted); font-weight: 400; }
+  .kpi-sub {
+    font-size: 11px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--card-border);
+    color: var(--text-muted);
+  }
+
+  .kpi-sub span { color: var(--seafoam); font-weight: 600; }
+
+  /* Section headers */
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  .section-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 20px;
+    color: var(--text-primary);
+  }
+
+  /* Grid layouts */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+
+  @media (max-width: 900px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+  /* Cards */
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    padding: 24px;
+    backdrop-filter: blur(8px);
+  }
+
+  .card-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* Table */
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  .data-table th {
+    text-align: left;
+    padding: 10px 12px;
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    border-bottom: 1px solid var(--card-border);
+    font-family: 'DM Mono', monospace;
+  }
+
+  .data-table td {
+    padding: 12px 12px;
+    border-bottom: 1px solid rgba(56,180,160,0.08);
+    vertical-align: middle;
+  }
+
+  .data-table tr:last-child td { border-bottom: none; }
+  .data-table tr:hover td { background: rgba(56,180,160,0.04); }
+
+  /* Status pills */
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .pill-green { background: rgba(45,138,78,0.2); color: #5dd47c; border: 1px solid rgba(45,138,78,0.3); }
+  .pill-yellow { background: rgba(244,196,48,0.2); color: var(--hatch-gold); border: 1px solid rgba(244,196,48,0.3); }
+  .pill-red { background: rgba(231,76,60,0.2); color: #ff8a7a; border: 1px solid rgba(231,76,60,0.3); }
+  .pill-blue { background: rgba(27,108,168,0.3); color: #74b9ff; border: 1px solid rgba(27,108,168,0.4); }
+  .pill-teal { background: rgba(56,180,160,0.2); color: var(--seafoam); border: 1px solid rgba(56,180,160,0.3); }
+
+  /* Progress bars */
+  .progress-wrap { margin-bottom: 14px; }
+  .progress-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+
+  .progress-label span { color: var(--text-primary); font-weight: 500; }
+
+  .progress-bar {
+    height: 6px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 1s ease;
+  }
+
+  /* Species badges */
+  .species-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 500;
+    font-style: italic;
+  }
+
+  .sp-hijau { background: rgba(45,138,78,0.2); color: #5dd47c; }
+  .sp-belimbing { background: rgba(27,108,168,0.3); color: #74b9ff; }
+  .sp-sisik { background: rgba(244,196,48,0.2); color: var(--hatch-gold); }
+  .sp-lekang { background: rgba(255,107,107,0.2); color: #ff8a7a; }
+  .sp-tempayan { background: rgba(150,100,200,0.2); color: #c3a5f5; }
+
+  /* Alerts */
+  .alert-item {
+    display: flex;
+    gap: 12px;
+    padding: 12px;
+    border-radius: 10px;
+    margin-bottom: 8px;
+    align-items: flex-start;
+  }
+
+  .alert-item.high { background: rgba(231,76,60,0.1); border: 1px solid rgba(231,76,60,0.25); }
+  .alert-item.medium { background: rgba(244,196,48,0.1); border: 1px solid rgba(244,196,48,0.25); }
+  .alert-item.low { background: rgba(56,180,160,0.1); border: 1px solid rgba(56,180,160,0.25); }
+
+  .alert-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+  .alert-body { flex: 1; }
+  .alert-title { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+  .alert-desc { font-size: 12px; color: var(--text-muted); }
+  .alert-time { font-size: 11px; color: var(--text-muted); font-family: 'DM Mono', monospace; margin-top: 3px; }
+
+  /* Config panel */
+  .config-section { margin-bottom: 28px; }
+  .config-title {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--seafoam);
+    margin-bottom: 14px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--card-border);
+  }
+
+  .form-group { margin-bottom: 14px; }
+  .form-label {
+    display: block;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 5px;
+    font-weight: 500;
+  }
+
+  .form-input, .form-select {
+    width: 100%;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: var(--text-primary);
+    font-family: 'Outfit', sans-serif;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .form-input:focus, .form-select:focus { border-color: var(--seafoam); }
+  .form-select option { background: var(--ocean-mid); }
+
+  .form-hint {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+
+  /* Chart placeholder */
+  .chart-area {
+    width: 100%;
+    height: 200px;
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    padding-bottom: 24px;
+    padding-top: 10px;
+  }
+
+  .chart-bar-wrap {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    height: 100%;
+    justify-content: flex-end;
+  }
+
+  .chart-bar {
+    width: 100%;
+    border-radius: 4px 4px 0 0;
+    transition: height 1s ease;
+    position: relative;
+  }
+
+  .chart-bar:hover::after {
+    content: attr(data-val);
+    position: absolute;
+    top: -22px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--ocean-mid);
+    border: 1px solid var(--card-border);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+
+  .chart-label { font-size: 10px; color: var(--text-muted); text-align: center; }
+  .chart-axis-y {
+    position: absolute;
+    left: -32px; top: 0; bottom: 24px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    font-size: 10px;
+    color: var(--text-muted);
+    font-family: 'DM Mono', monospace;
+  }
+
+  /* Timeline / stages */
+  .stage-timeline { position: relative; }
+  .stage-item {
+    display: flex;
+    gap: 16px;
+    padding-bottom: 20px;
+    position: relative;
+  }
+
+  .stage-item::before {
+    content: '';
+    position: absolute;
+    left: 18px;
+    top: 40px;
+    bottom: 0;
+    width: 2px;
+    background: var(--card-border);
+  }
+
+  .stage-item:last-child::before { display: none; }
+
+  .stage-icon {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+    border: 2px solid;
+  }
+
+  .stage-icon.done { background: rgba(45,138,78,0.2); border-color: #5dd47c; }
+  .stage-icon.active { background: rgba(244,196,48,0.2); border-color: var(--hatch-gold); }
+  .stage-icon.pending { background: rgba(255,255,255,0.05); border-color: var(--card-border); opacity: 0.5; }
+
+  .stage-body { flex: 1; padding-top: 6px; }
+  .stage-title { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+  .stage-meta { font-size: 12px; color: var(--text-muted); }
+
+  /* Nest detail modal */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(10,22,40,0.85);
+    backdrop-filter: blur(8px);
+    z-index: 200;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    background: var(--ocean-mid);
+    border: 1px solid var(--card-border);
+    border-radius: 20px;
+    width: 100%;
+    max-width: 680px;
+    max-height: 85vh;
+    overflow-y: auto;
+    padding: 28px;
+    animation: slideUp 0.3s ease;
+  }
+
+  @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 24px;
+  }
+
+  .modal-title { font-family: 'DM Serif Display', serif; font-size: 22px; }
+  .modal-close {
+    background: none; border: none; color: var(--text-muted);
+    font-size: 20px; cursor: pointer; padding: 4px 8px;
+    border-radius: 6px; transition: background 0.2s;
+  }
+  .modal-close:hover { background: var(--glass); color: var(--text-primary); }
+
+  .detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .detail-item { }
+  .detail-key { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px; }
+  .detail-val { font-size: 14px; font-weight: 500; }
+
+  /* SOP panel */
+  .sop-card {
+    background: rgba(56,180,160,0.05);
+    border: 1px solid rgba(56,180,160,0.2);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+  }
+
+  .sop-phase {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--seafoam);
+    margin-bottom: 6px;
+  }
+
+  .sop-list {
+    list-style: none;
+    padding: 0;
+  }
+
+  .sop-list li {
+    font-size: 12px;
+    color: var(--text-muted);
+    padding: 3px 0 3px 14px;
+    position: relative;
+    line-height: 1.5;
+  }
+
+  .sop-list li::before {
+    content: '▸';
+    position: absolute;
+    left: 0;
+    color: var(--seafoam);
+    font-size: 10px;
+  }
+
+  /* Mini stats */
+  .mini-stat {
+    text-align: center;
+    padding: 12px;
+    background: var(--glass);
+    border-radius: 10px;
+  }
+
+  .mini-stat-val { font-size: 24px; font-weight: 700; }
+  .mini-stat-key { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  @media (max-width: 700px) { .grid-4 { grid-template-columns: repeat(2,1fr); } }
+
+  /* Loading spinner */
+  .spinner {
+    width: 20px; height: 20px;
+    border: 2px solid var(--card-border);
+    border-top-color: var(--seafoam);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    display: inline-block;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Pulse on update */
+  @keyframes flashUpdate {
+    0% { box-shadow: 0 0 0 0 rgba(56,180,160,0.6); }
+    70% { box-shadow: 0 0 0 8px rgba(56,180,160,0); }
+    100% { box-shadow: 0 0 0 0 rgba(56,180,160,0); }
+  }
+
+  .just-updated { animation: flashUpdate 1s ease; }
+
+  /* Map placeholder */
+  .map-placeholder {
+    width: 100%;
+    height: 280px;
+    background: linear-gradient(135deg, rgba(10,22,40,0.8), rgba(15,76,117,0.4));
+    border-radius: 12px;
+    border: 1px solid var(--card-border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: var(--text-muted);
+    font-size: 13px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .map-dots {
+    position: absolute;
+    inset: 0;
+  }
+
+  .map-dot {
+    position: absolute;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    border: 2px solid;
+    animation: mapPulse 2s ease-in-out infinite;
+  }
+
+  .map-dot::after {
+    content: '';
+    position: absolute;
+    inset: -6px;
+    border-radius: 50%;
+    border: 1px solid;
+    border-color: inherit;
+    opacity: 0.3;
+    animation: mapRipple 2s ease-out infinite;
+  }
+
+  @keyframes mapPulse { 0%,100%{transform:scale(1);} 50%{transform:scale(1.3);} }
+  @keyframes mapRipple { 0%{transform:scale(1);opacity:0.3;} 100%{transform:scale(2.5);opacity:0;} }
+
+  .scrollable { overflow-x: auto; }
+
+  /* Refresh interval indicator */
+  .countdown-ring {
+    width: 32px; height: 32px;
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  .countdown-ring svg { transform: rotate(-90deg); }
+  .countdown-ring circle {
+    fill: none;
+    stroke-width: 3;
+    stroke-linecap: round;
+  }
+
+  .countdown-bg { stroke: rgba(255,255,255,0.1); }
+  .countdown-fill { stroke: var(--seafoam); transition: stroke-dashoffset 1s linear; }
+
+  .countdown-text {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px;
+    font-family: 'DM Mono', monospace;
+    color: var(--text-muted);
+  }
+
+</style>
+</head>
+<body>
+<div class="wave-bg"></div>
+<div class="app-container">
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="brand">
+    <div class="brand-icon">🐢</div>
+    <div class="brand-text">
+      <h1>SiPenyu</h1>
+      <p>Sistem Informasi Monitoring Penyu</p>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div class="countdown-ring">
+      <svg viewBox="0 0 32 32" width="32" height="32">
+        <circle class="countdown-bg" cx="16" cy="16" r="13"/>
+        <circle class="countdown-fill" cx="16" cy="16" r="13" id="countdownCircle"
+          stroke-dasharray="81.68" stroke-dashoffset="0"/>
+      </svg>
+      <div class="countdown-text" id="countdownText">60s</div>
+    </div>
+    <div class="status-badge" id="statusBadge">
+      <div class="dot"></div>
+      <span id="statusText">Menghubungkan...</span>
+    </div>
+    <span class="last-sync" id="lastSyncText">—</span>
+    <button class="btn btn-ghost" onclick="manualSync()" id="syncBtn">
+      <span id="syncIcon">↻</span> Sinkron
+    </button>
+    <button class="btn btn-primary" onclick="showTab('settings')">⚙ Pengaturan</button>
+  </div>
+</div>
+
+<!-- NAV TABS -->
+<div class="nav-tabs">
+  <button class="nav-tab active" onclick="showTab('dashboard')" id="tab-dashboard">
+    📊 Dashboard
+  </button>
+  <button class="nav-tab" onclick="showTab('nests')" id="tab-nests">
+    🥚 Sarang & Telur
+    <span class="tab-badge" id="nestBadge">0</span>
+  </button>
+  <button class="nav-tab" onclick="showTab('hatchlings')" id="tab-hatchlings">
+    🐢 Tukik
+  </button>
+  <button class="nav-tab" onclick="showTab('sop')" id="tab-sop">
+    📋 SOP & Panduan
+  </button>
+  <button class="nav-tab" onclick="showTab('settings')" id="tab-settings">
+    ⚙ Pengaturan
+  </button>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+<!-- ======================== DASHBOARD ======================== -->
+<div class="tab-content active" id="content-dashboard">
+
+  <!-- KPI Row -->
+  <div class="kpi-grid" id="kpiGrid">
+    <div class="kpi-card nests">
+      <div class="kpi-icon">🏖️</div>
+      <div class="kpi-value" id="kpi-nests">–</div>
+      <div class="kpi-label">Total Sarang Aktif</div>
+      <div class="kpi-sub">Musim ini: <span id="kpi-nests-season">–</span></div>
+    </div>
+    <div class="kpi-card eggs">
+      <div class="kpi-icon">🥚</div>
+      <div class="kpi-value" id="kpi-eggs">–</div>
+      <div class="kpi-label">Total Telur Dipantau</div>
+      <div class="kpi-sub">Rata-rata/sarang: <span id="kpi-eggs-avg">–</span></div>
+    </div>
+    <div class="kpi-card hatchlings">
+      <div class="kpi-icon">🐢</div>
+      <div class="kpi-value" id="kpi-hatch">–</div>
+      <div class="kpi-label">Tukik Menetas</div>
+      <div class="kpi-sub">Success rate: <span id="kpi-hatch-rate">–</span></div>
+    </div>
+    <div class="kpi-card released">
+      <div class="kpi-icon">🌊</div>
+      <div class="kpi-value" id="kpi-released">–</div>
+      <div class="kpi-label">Tukik Dilepaskan</div>
+      <div class="kpi-sub">Minggu ini: <span id="kpi-released-week">–</span></div>
+    </div>
+    <div class="kpi-card alerts">
+      <div class="kpi-icon">⚠️</div>
+      <div class="kpi-value" id="kpi-alerts">–</div>
+      <div class="kpi-label">Peringatan Aktif</div>
+      <div class="kpi-sub">Prioritas tinggi: <span id="kpi-alerts-high">–</span></div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <!-- Recent Activity -->
+    <div class="card">
+      <div class="card-title">🕐 Aktivitas Terbaru</div>
+      <div class="scrollable">
+        <table class="data-table" id="recentTable">
+          <thead>
+            <tr>
+              <th>Kode Sarang</th>
+              <th>Petugas</th>
+              <th>Aktivitas</th>
+              <th>Status</th>
+              <th>Waktu</th>
+            </tr>
+          </thead>
+          <tbody id="recentBody">
+            <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px">
+              <div class="spinner"></div> Memuat data...
+            </td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Alerts Panel -->
+    <div class="card">
+      <div class="card-title">🚨 Peringatan & Notifikasi</div>
+      <div id="alertsPanel">
+        <div style="text-align:center;color:var(--text-muted);padding:20px;font-size:13px">
+          <div class="spinner"></div><br>Memuat peringatan...
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="height:20px"></div>
+
+  <div class="grid-2">
+    <!-- Species Distribution Chart -->
+    <div class="card">
+      <div class="card-title">🐢 Distribusi Spesies</div>
+      <div id="speciesChart"></div>
+    </div>
+
+    <!-- Hatching Success Chart -->
+    <div class="card">
+      <div class="card-title">📈 Tingkat Penetasan (%) per Bulan</div>
+      <div style="position:relative;padding-left:36px;">
+        <div class="chart-area" id="hatchChart">
+          <div style="text-align:center;width:100%;color:var(--text-muted);font-size:13px">
+            Memuat grafik...
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="height:20px"></div>
+
+  <!-- Map -->
+  <div class="card">
+    <div class="card-title">🗺️ Peta Lokasi Sarang</div>
+    <div class="map-placeholder" id="mapArea">
+      <div class="map-dots" id="mapDots"></div>
+      <div style="position:relative;z-index:1;text-align:center">
+        <div style="font-size:32px;margin-bottom:8px">🗺️</div>
+        <div style="font-weight:600;color:var(--text-primary)">Peta Interaktif</div>
+        <div style="font-size:12px;margin-top:4px">Titik GPS akan ditampilkan setelah data KoboCollect terhubung</div>
+        <div style="font-size:11px;color:var(--seafoam);margin-top:8px">
+          Integrasikan dengan Google Maps API di pengaturan untuk mengaktifkan peta penuh
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ======================== SARANG & TELUR ======================== -->
+<div class="tab-content" id="content-nests">
+  <div class="section-header">
+    <div class="section-title">Manajemen Sarang & Telur</div>
+    <div style="display:flex;gap:10px">
+      <select class="form-select" style="width:auto;font-size:12px" id="filterStatus" onchange="filterNests()">
+        <option value="">Semua Status</option>
+        <option value="aman">Aman</option>
+        <option value="terganggu">Terganggu</option>
+        <option value="menetas">Menetas</option>
+        <option value="dilepas">Dilepas</option>
+      </select>
+      <select class="form-select" style="width:auto;font-size:12px" id="filterSpecies" onchange="filterNests()">
+        <option value="">Semua Spesies</option>
+        <option value="hijau">Penyu Hijau</option>
+        <option value="belimbing">Penyu Belimbing</option>
+        <option value="sisik">Penyu Sisik</option>
+        <option value="lekang">Penyu Lekang</option>
+        <option value="tempayan">Penyu Tempayan</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:20px">
+    <div class="scrollable">
+      <table class="data-table" id="nestsTable">
+        <thead>
+          <tr>
+            <th>Kode Sarang</th>
+            <th>Lokasi</th>
+            <th>Spesies</th>
+            <th>Tgl. Ditemukan</th>
+            <th>Telur</th>
+            <th>Hari Inkubasi</th>
+            <th>Suhu (°C)</th>
+            <th>Status</th>
+            <th>Ancaman</th>
+            <th>Petugas</th>
+            <th>Detail</th>
+          </tr>
+        </thead>
+        <tbody id="nestsBody">
+          <tr><td colspan="11" style="text-align:center;color:var(--text-muted);padding:20px">
+            <div class="spinner"></div> Memuat data...
+          </td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Egg Stages -->
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">📊 Statistik Inkubasi</div>
+      <div id="incubationStats"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">⚠️ Sarang Bermasalah</div>
+      <div id="problemNests"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ======================== TUKIK ======================== -->
+<div class="tab-content" id="content-hatchlings">
+  <div class="section-header">
+    <div class="section-title">Monitoring Tukik & Pelepasan</div>
+  </div>
+
+  <!-- Stats row -->
+  <div class="grid-4" style="margin-bottom:20px" id="hatchlingStats">
+    <div class="mini-stat"><div class="mini-stat-val" id="hs-hatched" style="color:var(--hatch-gold)">–</div><div class="mini-stat-key">Total Menetas</div></div>
+    <div class="mini-stat"><div class="mini-stat-val" id="hs-nursery" style="color:var(--seafoam)">–</div><div class="mini-stat-key">Dalam Pemeliharaan</div></div>
+    <div class="mini-stat"><div class="mini-stat-val" id="hs-released" style="color:#74b9ff">–</div><div class="mini-stat-key">Sudah Dilepas</div></div>
+    <div class="mini-stat"><div class="mini-stat-val" id="hs-dead" style="color:var(--coral)">–</div><div class="mini-stat-key">Mortalitas</div></div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">🐢 Sarang Siap Menetas / Pemeliharaan</div>
+      <div id="hatchlingTable"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">🌊 Log Pelepasan Tukik</div>
+      <div id="releaseLog"></div>
+    </div>
+  </div>
+
+  <div style="height:20px"></div>
+
+  <div class="card">
+    <div class="card-title">📋 Protokol Pelepasan (SOP IOSEA/CMS)</div>
+    <div class="grid-2">
+      <div>
+        <div class="sop-card">
+          <div class="sop-phase">✅ Sebelum Pelepasan</div>
+          <ul class="sop-list">
+            <li>Pilih waktu pelepasan sore/malam hari untuk menghindari panas matahari</li>
+            <li>Pastikan pantai bebas dari predator dan gangguan manusia</li>
+            <li>Hindari penggunaan senter putih — gunakan cahaya merah jika diperlukan</li>
+            <li>Jangan berjalan di antara tukik dan laut saat mereka bergerak</li>
+            <li>Pastikan tukik bergerak sendiri ke arah laut (imprinting alami)</li>
+          </ul>
+        </div>
+        <div class="sop-card">
+          <div class="sop-phase">📏 Kondisi Optimal</div>
+          <ul class="sop-list">
+            <li>Suhu air pemeliharaan: 26–29°C</li>
+            <li>Waktu terbaik: malam hari saat pasang naik</li>
+            <li>Jarak pelepasan: minimal 5 meter dari bibir pantai</li>
+            <li>Maksimal 3 orang selama proses pelepasan</li>
+          </ul>
+        </div>
+      </div>
+      <div>
+        <div class="sop-card">
+          <div class="sop-phase">🚫 Yang Harus Dihindari</div>
+          <ul class="sop-list">
+            <li>Jangan gunakan lampu/cahaya putih atau api di dekat tukik</li>
+            <li>Jangan bawa tukik ke air secara paksa — biarkan berjalan sendiri</li>
+            <li>Jangan lepaskan saat ada turis/keramaian yang tidak terkontrol</li>
+            <li>Jangan gunakan tas plastik atau wadah yang bisa mencekik</li>
+            <li>Hindari pelepasan saat cuaca ekstrem (hujan lebat, ombak besar)</li>
+          </ul>
+        </div>
+        <div class="sop-card">
+          <div class="sop-phase">📝 Dokumentasi Wajib</div>
+          <ul class="sop-list">
+            <li>Catat jumlah tukik yang dilepas via KoboCollect</li>
+            <li>Foto/video pelepasan wajib (upload ke form)</li>
+            <li>Catat waktu, cuaca, dan metode pelepasan</li>
+            <li>Input GPS lokasi pelepasan</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ======================== SOP & PANDUAN ======================== -->
+<div class="tab-content" id="content-sop">
+  <div class="section-header">
+    <div class="section-title">SOP & Panduan Monitoring (IOSEA/CMS)</div>
+  </div>
+
+  <div class="grid-2" style="margin-bottom:20px">
+    <div class="card">
+      <div class="card-title">🐾 Pengenalan Jejak & Spesies</div>
+      <div class="sop-card">
+        <div class="sop-phase">Penyu Hijau (Chelonia mydas)</div>
+        <ul class="sop-list">
+          <li>Jejak: dalam, simetris, paralel</li>
+          <li>Karapas: hijau kecoklatan, halus, oval</li>
+          <li>Ukuran: 90–120 cm; berat: 68–190 kg</li>
+          <li>Waktu inkubasi: 45–75 hari (rata-rata 60 hari)</li>
+        </ul>
+      </div>
+      <div class="sop-card">
+        <div class="sop-phase">Penyu Belimbing (Dermochelys coriacea)</div>
+        <ul class="sop-list">
+          <li>Jejak: sangat lebar, bekas perut khas</li>
+          <li>Karapas: hitam seperti kulit, tanpa sisik keras</li>
+          <li>Ukuran hingga 180 cm; terbesar di dunia</li>
+          <li>Waktu inkubasi: 60–70 hari</li>
+        </ul>
+      </div>
+      <div class="sop-card">
+        <div class="sop-phase">Penyu Sisik (Eretmochelys imbricata)</div>
+        <ul class="sop-list">
+          <li>Jejak: asimetris/zigzag, lebih sempit</li>
+          <li>Karapas: unik seperti sisik tumpang tindih</li>
+          <li>Ukuran: 60–90 cm</li>
+        </ul>
+      </div>
+      <div class="sop-card">
+        <div class="sop-phase">Penyu Lekang (Lepidochelys olivacea)</div>
+        <ul class="sop-list">
+          <li>Jejak: asimetris/zigzag, mirip sisik</li>
+          <li>Karapas: olive-abu, hampir bundar</li>
+          <li>Ukuran: 60–70 cm</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🏖️ Tahap Bersarang & Protokol Observer</div>
+      <div class="stage-timeline">
+        <div class="stage-item">
+          <div class="stage-icon done">🌊</div>
+          <div class="stage-body">
+            <div class="stage-title">1. Naik ke Pantai (5–20 mnt)</div>
+            <div class="stage-meta">Kerentanan: TINGGI | Jarak: ≥15m | Lampu: TIDAK</div>
+          </div>
+        </div>
+        <div class="stage-item">
+          <div class="stage-icon done">⛏️</div>
+          <div class="stage-body">
+            <div class="stage-title">2. Menggali Lubang Tubuh (20–40 mnt)</div>
+            <div class="stage-meta">Kerentanan: TINGGI | Jarak: ≥15m | Lampu: TIDAK</div>
+          </div>
+        </div>
+        <div class="stage-item">
+          <div class="stage-icon active">🪺</div>
+          <div class="stage-body">
+            <div class="stage-title">3. Menggali Ruang Telur (10–20 mnt)</div>
+            <div class="stage-meta">Kerentanan: SEDANG | Jarak: ≥1m belakang | Maks 3 org</div>
+          </div>
+        </div>
+        <div class="stage-item">
+          <div class="stage-icon active">🥚</div>
+          <div class="stage-body">
+            <div class="stage-title">4. Bertelur (3–10 mnt)</div>
+            <div class="stage-meta">Kerentanan: RENDAH | Lampu merah OK dari belakang</div>
+          </div>
+        </div>
+        <div class="stage-item">
+          <div class="stage-icon pending">🏖️</div>
+          <div class="stage-body">
+            <div class="stage-title">5. Menutup Sarang (20–40 mnt)</div>
+            <div class="stage-meta">Kerentanan: RENDAH | Jarak: ≥2m belakang</div>
+          </div>
+        </div>
+        <div class="stage-item">
+          <div class="stage-icon pending">🌊</div>
+          <div class="stage-body">
+            <div class="stage-title">6. Kembali ke Laut (5–15 mnt)</div>
+            <div class="stage-meta">Kerentanan: RENDAH | Tetap 2m di belakang</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-title">📐 Parameter Monitoring Inkubasi (SOP Internasional)</div>
+    <div class="grid-4">
+      <div style="text-align:center;padding:16px;background:rgba(244,196,48,0.08);border-radius:12px;border:1px solid rgba(244,196,48,0.2)">
+        <div style="font-size:28px;font-weight:700;color:var(--hatch-gold)">26–32°C</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px">Suhu Inkubasi Optimal</div>
+        <div style="font-size:11px;color:var(--coral);margin-top:6px">⚠️ &lt;25°C atau &gt;35°C: BAHAYA</div>
+      </div>
+      <div style="text-align:center;padding:16px;background:rgba(27,108,168,0.1);border-radius:12px;border:1px solid rgba(27,108,168,0.3)">
+        <div style="font-size:28px;font-weight:700;color:#74b9ff">45–75 hari</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px">Durasi Inkubasi Normal</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:6px">Tergantung spesies & suhu</div>
+      </div>
+      <div style="text-align:center;padding:16px;background:rgba(56,180,160,0.08);border-radius:12px;border:1px solid rgba(56,180,160,0.2)">
+        <div style="font-size:28px;font-weight:700;color:var(--seafoam)">&gt;50%</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px">Hatching Rate Target</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:6px">Idealnya &gt;70% per sarang</div>
+      </div>
+      <div style="text-align:center;padding:16px;background:rgba(45,138,78,0.08);border-radius:12px;border:1px solid rgba(45,138,78,0.2)">
+        <div style="font-size:28px;font-weight:700;color:#5dd47c">&lt;6 jam</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px">Waktu Maks Relokasi Telur</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:6px">Sejak ditemukan hingga dipindah</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🔗 Integrasi KoboCollect — Panduan Singkat</div>
+    <div class="grid-2">
+      <div>
+        <div class="sop-card">
+          <div class="sop-phase">Cara Menghubungkan KoboToolbox API</div>
+          <ul class="sop-list">
+            <li>Masuk ke koba.humanitarianresponse.info atau kobo.unhcr.org</li>
+            <li>Buka profil → API token (terlihat di bawah username)</li>
+            <li>Copy token dan paste di tab Pengaturan dashboard ini</li>
+            <li>Masukkan Asset UID form (ada di URL saat membuka form)</li>
+            <li>Klik "Test Koneksi" lalu "Simpan & Aktifkan Auto-Sync"</li>
+          </ul>
+        </div>
+        <div class="sop-card">
+          <div class="sop-phase">Format Data yang Didukung</div>
+          <ul class="sop-list">
+            <li>KoboToolbox REST API v2 (JSON)</li>
+            <li>ODK Central REST API</li>
+            <li>CSV/Excel import manual (via tombol Import)</li>
+            <li>Google Sheets (via Apps Script webhook)</li>
+          </ul>
+        </div>
+      </div>
+      <div>
+        <div class="sop-card">
+          <div class="sop-phase">Field Mapping XLSForm → Dashboard</div>
+          <ul class="sop-list">
+            <li><code style="color:var(--seafoam)">kode_sarang</code> → ID Sarang</li>
+            <li><code style="color:var(--seafoam)">jenis_penyu</code> → Spesies</li>
+            <li><code style="color:var(--seafoam)">jumlah_telur_awal</code> → Total Telur</li>
+            <li><code style="color:var(--seafoam)">suhu_sarang</code> → Suhu Inkubasi</li>
+            <li><code style="color:var(--seafoam)">status_penetasan</code> → Status Sarang</li>
+            <li><code style="color:var(--seafoam)">jumlah_tukik_menetas</code> → Tukik Menetas</li>
+            <li><code style="color:var(--seafoam)">jumlah_tukik_dilepas</code> → Tukik Dilepas</li>
+            <li><code style="color:var(--seafoam)">gps_lokasi</code> → Koordinat Peta</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ======================== SETTINGS ======================== -->
+<div class="tab-content" id="content-settings">
+  <div class="section-header">
+    <div class="section-title">Pengaturan Integrasi & Sistem</div>
+  </div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="config-section">
+        <div class="config-title">🔗 Koneksi KoboToolbox API</div>
+        <div class="form-group">
+          <label class="form-label">Platform KoboToolbox</label>
+          <select class="form-select" id="koboPlatform">
+            <option value="https://kf.kobotoolbox.org">KoboToolbox (kf.kobotoolbox.org)</option>
+            <option value="https://kobo.humanitarianresponse.info">KoBO OCHA (kobo.humanitarianresponse.info)</option>
+            <option value="https://kobo.unhcr.org">KoBO UNHCR (kobo.unhcr.org)</option>
+            <option value="custom">Custom / Self-hosted</option>
+          </select>
+        </div>
+        <div class="form-group" id="customUrlGroup" style="display:none">
+          <label class="form-label">Custom API URL</label>
+          <input class="form-input" type="text" id="customUrl" placeholder="https://your-kobo-server.org">
+        </div>
+        <div class="form-group">
+          <label class="form-label">API Token <span style="color:var(--coral)">*</span></label>
+          <input class="form-input" type="password" id="apiToken" placeholder="Token dari profil KoboToolbox Anda">
+          <div class="form-hint">Temukan di: Profil → API Token (kf.kobotoolbox.org/token)</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Asset UID Form <span style="color:var(--coral)">*</span></label>
+          <input class="form-input" type="text" id="assetUid" placeholder="contoh: aXmNkP2qRsT8vW">
+          <div class="form-hint">Ada di URL form: /api/v2/assets/<strong>UID_INI</strong>/</div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:16px">
+          <button class="btn btn-ghost" onclick="testConnection()">🔌 Test Koneksi</button>
+          <button class="btn btn-primary" onclick="saveSettings()">💾 Simpan & Aktifkan</button>
+        </div>
+        <div id="connTestResult" style="margin-top:12px;font-size:13px"></div>
+      </div>
+
+      <div class="config-section" style="margin-top:24px">
+        <div class="config-title">⏱️ Auto-Sync</div>
+        <div class="form-group">
+          <label class="form-label">Interval Sinkronisasi Otomatis</label>
+          <select class="form-select" id="syncInterval">
+            <option value="30">Setiap 30 detik</option>
+            <option value="60" selected>Setiap 1 menit</option>
+            <option value="300">Setiap 5 menit</option>
+            <option value="600">Setiap 10 menit</option>
+            <option value="1800">Setiap 30 menit</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Batas Suhu Inkubasi (°C)</label>
+          <div style="display:flex;gap:10px">
+            <input class="form-input" type="number" id="tempMin" placeholder="Min" value="25">
+            <input class="form-input" type="number" id="tempMax" placeholder="Max" value="34">
+          </div>
+          <div class="form-hint">Peringatan otomatis jika suhu di luar batas ini</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Hari Maks Inkubasi Tanpa Penetasan (alert)</label>
+          <input class="form-input" type="number" id="maxIncubation" value="80">
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="config-section">
+        <div class="config-title">📥 Import Data Manual</div>
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px">
+          Jika tidak terhubung ke API, Anda bisa import data langsung dari file CSV/JSON export KoboCollect atau input manual.
+        </p>
+        <div style="border:2px dashed var(--card-border);border-radius:10px;padding:24px;text-align:center;margin-bottom:12px">
+          <div style="font-size:28px;margin-bottom:8px">📄</div>
+          <div style="font-size:13px;color:var(--text-muted)">Drop file CSV / JSON export KoboToolbox</div>
+          <input type="file" id="fileInput" accept=".csv,.json" style="display:none" onchange="handleFileImport(event)">
+          <button class="btn btn-ghost" style="margin-top:12px" onclick="document.getElementById('fileInput').click()">
+            Pilih File
+          </button>
+        </div>
+        <div id="importResult" style="font-size:13px"></div>
+      </div>
+
+      <div class="config-section" style="margin-top:24px">
+        <div class="config-title">➕ Input Data Manual</div>
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px">
+          Tambahkan data sarang secara langsung (untuk penggunaan offline).
+        </p>
+        <div class="form-group">
+          <label class="form-label">Kode Sarang</label>
+          <input class="form-input" type="text" id="m-kode" placeholder="contoh: SAR-2026-001">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Lokasi Pantai</label>
+          <input class="form-input" type="text" id="m-lokasi" placeholder="contoh: Pantai Paloh Sektor 3">
+        </div>
+        <div style="display:flex;gap:10px">
+          <div class="form-group" style="flex:1">
+            <label class="form-label">Spesies</label>
+            <select class="form-select" id="m-spesies">
+              <option value="hijau">Penyu Hijau</option>
+              <option value="belimbing">Penyu Belimbing</option>
+              <option value="sisik">Penyu Sisik</option>
+              <option value="lekang">Penyu Lekang</option>
+              <option value="tempayan">Penyu Tempayan</option>
+              <option value="tidak_yakin">Tidak Yakin</option>
+            </select>
+          </div>
+          <div class="form-group" style="flex:1">
+            <label class="form-label">Jumlah Telur</label>
+            <input class="form-input" type="number" id="m-telur" min="0" placeholder="0">
+          </div>
+        </div>
+        <div style="display:flex;gap:10px">
+          <div class="form-group" style="flex:1">
+            <label class="form-label">Tanggal Ditemukan</label>
+            <input class="form-input" type="date" id="m-tanggal">
+          </div>
+          <div class="form-group" style="flex:1">
+            <label class="form-label">Suhu Sarang (°C)</label>
+            <input class="form-input" type="number" id="m-suhu" step="0.1" placeholder="29.5">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Nama Petugas</label>
+          <input class="form-input" type="text" id="m-petugas" placeholder="Nama enumerator">
+        </div>
+        <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="addManualNest()">
+          ➕ Tambah Data Sarang
+        </button>
+        <div id="manualResult" style="margin-top:10px;font-size:13px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+</div>
+
+<!-- DETAIL MODAL -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+  <div class="modal" id="modalContent">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="modalTitle">Detail Sarang</div>
+        <div id="modalSubtitle" style="font-size:13px;color:var(--text-muted);margin-top:4px"></div>
+      </div>
+      <button class="modal-close" onclick="document.getElementById('modalOverlay').classList.remove('open')">✕</button>
+    </div>
+    <div id="modalBody"></div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+//  STATE & CONFIG
+// ============================================================
+const state = {
+  nests: [],
+  config: {},
+  syncing: false,
+  countdown: 60,
+  intervalId: null,
+  countdownId: null,
+  connected: false,
+};
+
+// ============================================================
+//  DEMO DATA (used when API not connected)
+// ============================================================
+const DEMO_NESTS = [
+  { id:'SAR-2026-001', lokasi:'Pantai Paloh Sektor 1', spesies:'hijau', tgl:'2026-01-15', telur:110, suhu:29.2, hari_inkubasi:76, status:'menetas', petugas:'Budi Santoso', tukik_menetas:94, tukik_dilepas:90, status_sarang:'aman', ancaman:[], relokasi:false },
+  { id:'SAR-2026-002', lokasi:'Pantai Paloh Sektor 2', spesies:'belimbing', tgl:'2026-02-03', telur:85, suhu:28.8, hari_inkubasi:57, status:'inkubasi', petugas:'Dewi Rahayu', tukik_menetas:0, tukik_dilepas:0, status_sarang:'aman', ancaman:['predator'], relokasi:false },
+  { id:'SAR-2026-003', lokasi:'Pantai Sukamade A', spesies:'sisik', tgl:'2026-02-10', telur:130, suhu:30.1, hari_inkubasi:50, status:'inkubasi', petugas:'Agus Mulyono', tukik_menetas:0, tukik_dilepas:0, status_sarang:'terganggu', ancaman:['manusia','sampah_plastik'], relokasi:true },
+  { id:'SAR-2026-004', lokasi:'Pantai Sukamade B', spesies:'lekang', tgl:'2026-02-18', telur:95, suhu:36.5, hari_inkubasi:42, status:'inkubasi', petugas:'Siti Nurhaliza', tukik_menetas:0, tukik_dilepas:0, status_sarang:'terganggu', ancaman:['banjir'], relokasi:false },
+  { id:'SAR-2026-005', lokasi:'Pantai Penyu Selatan', spesies:'hijau', tgl:'2026-03-01', telur:120, suhu:29.5, hari_inkubasi:31, status:'inkubasi', petugas:'Rudi Hartono', tukik_menetas:0, tukik_dilepas:0, status_sarang:'aman', ancaman:[], relokasi:false },
+  { id:'SAR-2026-006', lokasi:'Pantai Penyu Selatan', spesies:'hijau', tgl:'2025-12-10', telur:108, suhu:28.5, hari_inkubasi:112, status:'dilepas', petugas:'Budi Santoso', tukik_menetas:98, tukik_dilepas:98, status_sarang:'aman', ancaman:[], relokasi:false },
+  { id:'SAR-2026-007', lokasi:'Pantai Paloh Sektor 3', spesies:'tempayan', tgl:'2026-03-10', telur:75, suhu:27.9, hari_inkubasi:22, status:'inkubasi', petugas:'Yuni Astuti', tukik_menetas:0, tukik_dilepas:0, status_sarang:'aman', ancaman:[], relokasi:false },
+  { id:'SAR-2026-008', lokasi:'Pantai Dermaga', spesies:'hijau', tgl:'2026-03-20', telur:99, suhu:29.0, hari_inkubasi:12, status:'inkubasi', petugas:'Dewi Rahayu', tukik_menetas:0, tukik_dilepas:0, status_sarang:'aman', ancaman:['cahaya_buatan'], relokasi:false },
+];
+
+// ============================================================
+//  INIT
+// ============================================================
+window.addEventListener('DOMContentLoaded', () => {
+  loadConfig();
+  setDate();
+  state.nests = [...DEMO_NESTS];
+  renderAll();
+  startAutoSync();
+});
+
+function setDate() {
+  document.getElementById('m-tanggal').value = new Date().toISOString().split('T')[0];
+}
+
+function loadConfig() {
+  try {
+    const saved = localStorage.getItem('sipenyu_config');
+    if (saved) state.config = JSON.parse(saved);
+    if (state.config.apiToken) document.getElementById('apiToken').value = state.config.apiToken || '';
+    if (state.config.assetUid) document.getElementById('assetUid').value = state.config.assetUid || '';
+    if (state.config.koboPlatform) document.getElementById('koboPlatform').value = state.config.koboPlatform || '';
+    if (state.config.syncInterval) document.getElementById('syncInterval').value = state.config.syncInterval || 60;
+    if (state.config.tempMin) document.getElementById('tempMin').value = state.config.tempMin || 25;
+    if (state.config.tempMax) document.getElementById('tempMax').value = state.config.tempMax || 34;
+  } catch(e) {}
+}
+
+// ============================================================
+//  TABS
+// ============================================================
+function showTab(name) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
+  document.getElementById('content-' + name).classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+
+  if (name === 'nests') renderNestsTable();
+  if (name === 'hatchlings') renderHatchlings();
+}
+
+// ============================================================
+//  RENDER ALL
+// ============================================================
+function renderAll() {
+  renderKPIs();
+  renderRecentActivity();
+  renderAlerts();
+  renderSpeciesChart();
+  renderHatchChart();
+  renderMapDots();
+  renderNestsTable();
+  renderHatchlings();
+  updateNestBadge();
+}
+
+// ============================================================
+//  KPIs
+// ============================================================
+function renderKPIs() {
+  const nests = state.nests;
+  const activeNests = nests.filter(n => n.status === 'inkubasi').length;
+  const totalEggs = nests.reduce((s, n) => s + (n.telur || 0), 0);
+  const avgEggs = nests.length ? Math.round(totalEggs / nests.length) : 0;
+  const totalHatch = nests.reduce((s, n) => s + (n.tukik_menetas || 0), 0);
+  const totalEggsHatch = nests.filter(n => n.tukik_menetas > 0).reduce((s,n) => s + n.telur, 0);
+  const hatchRate = totalEggsHatch > 0 ? Math.round((totalHatch / totalEggsHatch) * 100) : 0;
+  const totalReleased = nests.reduce((s, n) => s + (n.tukik_dilepas || 0), 0);
+
+  const alerts = generateAlerts();
+  const highAlerts = alerts.filter(a => a.level === 'high').length;
+
+  animateNum('kpi-nests', activeNests);
+  document.getElementById('kpi-nests-season').textContent = nests.length;
+  animateNum('kpi-eggs', totalEggs);
+  document.getElementById('kpi-eggs-avg').textContent = avgEggs;
+  animateNum('kpi-hatch', totalHatch);
+  document.getElementById('kpi-hatch-rate').textContent = hatchRate + '%';
+  animateNum('kpi-released', totalReleased);
+  document.getElementById('kpi-released-week').textContent = Math.round(totalReleased * 0.3);
+  animateNum('kpi-alerts', alerts.length);
+  document.getElementById('kpi-alerts-high').textContent = highAlerts;
+}
+
+function animateNum(id, target) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const start = parseInt(el.textContent) || 0;
+  const diff = target - start;
+  const steps = 30;
+  let i = 0;
+  const timer = setInterval(() => {
+    i++;
+    el.textContent = Math.round(start + (diff * i / steps));
+    if (i >= steps) { el.textContent = target; clearInterval(timer); }
+  }, 20);
+}
+
+function updateNestBadge() {
+  document.getElementById('nestBadge').textContent = state.nests.filter(n=>n.status==='inkubasi').length;
+}
+
+// ============================================================
+//  RECENT ACTIVITY
+// ============================================================
+function renderRecentActivity() {
+  const tbody = document.getElementById('recentBody');
+  const recent = [...state.nests]
+    .sort((a,b) => new Date(b.tgl) - new Date(a.tgl))
+    .slice(0, 8);
+
+  if (!recent.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px">Belum ada data</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = recent.map(n => `
+    <tr>
+      <td><span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--seafoam)">${n.id}</span></td>
+      <td style="font-size:12px">${n.petugas}</td>
+      <td style="font-size:12px">${getActivityLabel(n)}</td>
+      <td>${getStatusPill(n.status)}</td>
+      <td style="font-size:11px;color:var(--text-muted);font-family:'DM Mono',monospace">${n.tgl}</td>
+    </tr>
+  `).join('');
+}
+
+function getActivityLabel(n) {
+  if (n.status === 'dilepas') return 'Pelepasan tukik';
+  if (n.status === 'menetas') return 'Sarang menetas';
+  if (n.relokasi) return 'Relokasi telur';
+  return 'Monitoring rutin';
+}
+
+function getStatusPill(status) {
+  const map = {
+    'inkubasi': '<span class="pill pill-yellow">⏳ Inkubasi</span>',
+    'menetas': '<span class="pill pill-green">✅ Menetas</span>',
+    'dilepas': '<span class="pill pill-blue">🌊 Dilepas</span>',
+    'terganggu': '<span class="pill pill-red">⚠️ Terganggu</span>',
+    'hilang': '<span class="pill pill-red">❌ Hilang</span>',
+  };
+  return map[status] || '<span class="pill pill-teal">📍 Aktif</span>';
+}
+
+function getSpeciesBadge(sp) {
+  const map = {
+    'hijau': '<span class="species-badge sp-hijau">C. mydas</span>',
+    'belimbing': '<span class="species-badge sp-belimbing">D. coriacea</span>',
+    'sisik': '<span class="species-badge sp-sisik">E. imbricata</span>',
+    'lekang': '<span class="species-badge sp-lekang">L. olivacea</span>',
+    'tempayan': '<span class="species-badge sp-tempayan">C. caretta</span>',
+  };
+  return map[sp] || `<span class="species-badge" style="background:rgba(255,255,255,0.05)">${sp}</span>`;
+}
+
+// ============================================================
+//  ALERTS
+// ============================================================
+function generateAlerts() {
+  const alerts = [];
+  const tempMin = parseFloat(document.getElementById('tempMin')?.value || 25);
+  const tempMax = parseFloat(document.getElementById('tempMax')?.value || 34);
+  const maxDays = parseInt(document.getElementById('maxIncubation')?.value || 80);
+
+  state.nests.forEach(n => {
+    if (n.status !== 'inkubasi') return;
+    if (n.suhu > tempMax) {
+      alerts.push({ level:'high', icon:'🌡️', title:`Suhu Kritis: ${n.id}`, desc:`Suhu ${n.suhu}°C melebihi batas atas ${tempMax}°C di ${n.lokasi}`, time: 'Sekarang' });
+    }
+    if (n.suhu < tempMin) {
+      alerts.push({ level:'high', icon:'❄️', title:`Suhu Rendah: ${n.id}`, desc:`Suhu ${n.suhu}°C di bawah batas ${tempMin}°C di ${n.lokasi}`, time: 'Sekarang' });
+    }
+    if (n.ancaman && n.ancaman.includes('predator')) {
+      alerts.push({ level:'high', icon:'🦊', title:`Ancaman Predator: ${n.id}`, desc:`Sarang di ${n.lokasi} terancam predator`, time: n.tgl });
+    }
+    if (n.ancaman && n.ancaman.includes('manusia')) {
+      alerts.push({ level:'medium', icon:'👤', title:`Gangguan Manusia: ${n.id}`, desc:`Ada aktivitas manusia di sekitar sarang ${n.lokasi}`, time: n.tgl });
+    }
+    if (n.hari_inkubasi > maxDays) {
+      alerts.push({ level:'medium', icon:'⏰', title:`Inkubasi Panjang: ${n.id}`, desc:`${n.hari_inkubasi} hari inkubasi di ${n.lokasi}, melebihi batas ${maxDays} hari`, time: n.tgl });
+    }
+    if (n.ancaman && n.ancaman.includes('banjir')) {
+      alerts.push({ level:'high', icon:'🌊', title:`Risiko Banjir: ${n.id}`, desc:`Sarang di ${n.lokasi} terancam genangan/pasang`, time: n.tgl });
+    }
+    if (n.ancaman && n.ancaman.includes('cahaya_buatan')) {
+      alerts.push({ level:'medium', icon:'💡', title:`Polusi Cahaya: ${n.id}`, desc:`Cahaya buatan terdeteksi di sekitar ${n.lokasi}`, time: n.tgl });
+    }
+  });
+
+  if (!alerts.length) {
+    alerts.push({ level:'low', icon:'✅', title:'Semua Sarang Normal', desc:'Tidak ada peringatan aktif saat ini', time:'Baru saja' });
+  }
+  return alerts;
+}
+
+function renderAlerts() {
+  const alerts = generateAlerts();
+  const panel = document.getElementById('alertsPanel');
+  panel.innerHTML = alerts.slice(0, 6).map(a => `
+    <div class="alert-item ${a.level}">
+      <div class="alert-icon">${a.icon}</div>
+      <div class="alert-body">
+        <div class="alert-title">${a.title}</div>
+        <div class="alert-desc">${a.desc}</div>
+        <div class="alert-time">${a.time}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ============================================================
+//  SPECIES CHART
+// ============================================================
+function renderSpeciesChart() {
+  const counts = {};
+  state.nests.forEach(n => { counts[n.spesies] = (counts[n.spesies] || 0) + 1; });
+  const total = Object.values(counts).reduce((a,b) => a+b, 0) || 1;
+
+  const colors = { hijau:'#2d8a4e', belimbing:'#1b6ca8', sisik:'#f4c430', lekang:'#ff6b6b', tempayan:'#c3a5f5', tidak_yakin:'#888' };
+  const labels = { hijau:'Penyu Hijau', belimbing:'Penyu Belimbing', sisik:'Penyu Sisik', lekang:'Penyu Lekang', tempayan:'Penyu Tempayan', tidak_yakin:'Tidak Yakin' };
+
+  const el = document.getElementById('speciesChart');
+  el.innerHTML = Object.entries(counts).map(([sp, count]) => `
+    <div class="progress-wrap">
+      <div class="progress-label">
+        <span>${labels[sp] || sp}</span>
+        <span style="color:var(--text-muted)">${count} sarang (${Math.round(count/total*100)}%)</span>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" style="width:${count/total*100}%;background:${colors[sp]||'#888'}"></div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ============================================================
+//  HATCH CHART
+// ============================================================
+function renderHatchChart() {
+  const months = ['Okt','Nov','Des','Jan','Feb','Mar'];
+  const rates  = [72, 68, 81, 75, 85, 79];
+  const maxRate = Math.max(...rates);
+
+  const el = document.getElementById('hatchChart');
+  el.innerHTML = `
+    <div class="chart-axis-y">
+      <span>100%</span><span>75%</span><span>50%</span><span>25%</span><span>0%</span>
+    </div>
+    ${months.map((m,i) => `
+      <div class="chart-bar-wrap">
+        <div class="chart-bar" 
+          style="height:${(rates[i]/100)*160}px;
+            background:linear-gradient(to top,var(--seafoam),rgba(56,180,160,0.4))"
+          data-val="${rates[i]}%">
+        </div>
+        <div class="chart-label">${m}</div>
+      </div>
+    `).join('')}
+  `;
+}
+
+// ============================================================
+//  MAP DOTS
+// ============================================================
+function renderMapDots() {
+  const dots = document.getElementById('mapDots');
+  const colors = { hijau:'#2d8a4e', belimbing:'#1b6ca8', sisik:'#f4c430', lekang:'#ff6b6b', tempayan:'#c3a5f5' };
+  const positions = [
+    [20,40],[35,60],[50,35],[65,55],[75,30],[25,70],[55,75],[80,60]
+  ];
+  dots.innerHTML = state.nests.slice(0,8).map((n,i) => {
+    const [x,y] = positions[i] || [Math.random()*80+10, Math.random()*70+15];
+    const c = colors[n.spesies] || '#38b4a0';
+    return `<div class="map-dot" style="left:${x}%;top:${y}%;border-color:${c};animation-delay:${i*0.3}s"
+      title="${n.id} — ${n.lokasi}"></div>`;
+  }).join('');
+}
+
+// ============================================================
+//  NESTS TABLE
+// ============================================================
+function renderNestsTable() {
+  const fStatus = document.getElementById('filterStatus')?.value || '';
+  const fSpecies = document.getElementById('filterSpecies')?.value || '';
+
+  let nests = state.nests;
+  if (fStatus) nests = nests.filter(n => n.status === fStatus || n.status_sarang === fStatus);
+  if (fSpecies) nests = nests.filter(n => n.spesies === fSpecies);
+
+  const tbody = document.getElementById('nestsBody');
+  if (!tbody) return;
+
+  if (!nests.length) {
+    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:20px;color:var(--text-muted)">Tidak ada data ditemukan</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = nests.map(n => {
+    const tempWarn = n.suhu < 25 || n.suhu > 34;
+    const threats = (n.ancaman || []).map(a => `<span class="pill pill-red" style="font-size:10px">${a}</span>`).join(' ');
+    return `
+      <tr>
+        <td><span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--seafoam)">${n.id}</span></td>
+        <td style="font-size:12px">${n.lokasi}</td>
+        <td>${getSpeciesBadge(n.spesies)}</td>
+        <td style="font-size:12px;font-family:'DM Mono',monospace">${n.tgl}</td>
+        <td style="text-align:center;font-weight:600">${n.telur}</td>
+        <td style="text-align:center;font-family:'DM Mono',monospace">${n.hari_inkubasi} hr</td>
+        <td style="text-align:center;color:${tempWarn?'var(--coral)':'var(--text-primary)'};font-weight:${tempWarn?'700':'400'}">
+          ${n.suhu}${tempWarn?' ⚠️':''}
+        </td>
+        <td>${getStatusPill(n.status)}</td>
+        <td>${threats || '<span style="color:var(--text-muted);font-size:12px">—</span>'}</td>
+        <td style="font-size:12px">${n.petugas}</td>
+        <td>
+          <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px" onclick="showNestDetail('${n.id}')">
+            👁 Detail
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function filterNests() { renderNestsTable(); }
+
+// ============================================================
+//  NEST DETAIL MODAL
+// ============================================================
+function showNestDetail(id) {
+  const n = state.nests.find(x => x.id === id);
+  if (!n) return;
+
+  const hatchRate = n.telur > 0 && n.tukik_menetas > 0 
+    ? Math.round(n.tukik_menetas / n.telur * 100) : null;
+
+  document.getElementById('modalTitle').textContent = id;
+  document.getElementById('modalSubtitle').innerHTML = `${n.lokasi} · ${getSpeciesBadge(n.spesies)}`;
+
+  document.getElementById('modalBody').innerHTML = `
+    <div class="detail-grid">
+      <div class="detail-item"><div class="detail-key">Lokasi Pantai</div><div class="detail-val">${n.lokasi}</div></div>
+      <div class="detail-item"><div class="detail-key">Spesies</div><div class="detail-val">${getSpeciesBadge(n.spesies)}</div></div>
+      <div class="detail-item"><div class="detail-key">Tgl. Ditemukan</div><div class="detail-val" style="font-family:'DM Mono',monospace">${n.tgl}</div></div>
+      <div class="detail-item"><div class="detail-key">Petugas</div><div class="detail-val">${n.petugas}</div></div>
+      <div class="detail-item"><div class="detail-key">Jumlah Telur</div><div class="detail-val" style="color:var(--hatch-gold);font-size:20px;font-weight:700">${n.telur}</div></div>
+      <div class="detail-item"><div class="detail-key">Hari Inkubasi</div><div class="detail-val" style="font-family:'DM Mono',monospace">${n.hari_inkubasi} hari</div></div>
+      <div class="detail-item"><div class="detail-key">Suhu Sarang</div>
+        <div class="detail-val" style="color:${n.suhu>34||n.suhu<25?'var(--coral)':'#5dd47c'}">${n.suhu}°C ${n.suhu>34?'⚠️ TERLALU PANAS':n.suhu<25?'⚠️ TERLALU DINGIN':'✅ Normal'}</div>
+      </div>
+      <div class="detail-item"><div class="detail-key">Status Sarang</div><div class="detail-val">${getStatusPill(n.status)}</div></div>
+      ${n.tukik_menetas ? `
+        <div class="detail-item"><div class="detail-key">Tukik Menetas</div><div class="detail-val" style="color:#5dd47c;font-size:20px;font-weight:700">${n.tukik_menetas}</div></div>
+        <div class="detail-item"><div class="detail-key">Hatching Rate</div><div class="detail-val" style="color:var(--seafoam)">${hatchRate}%</div></div>
+      ` : ''}
+      ${n.tukik_dilepas ? `
+        <div class="detail-item"><div class="detail-key">Tukik Dilepas</div><div class="detail-val" style="color:#74b9ff;font-size:20px;font-weight:700">${n.tukik_dilepas}</div></div>
+      ` : ''}
+      <div class="detail-item"><div class="detail-key">Relokasi Telur</div><div class="detail-val">${n.relokasi ? '✅ Ya' : '—'}</div></div>
+    </div>
+    ${n.ancaman && n.ancaman.length ? `
+      <div style="margin-top:16px;padding:12px;background:rgba(231,76,60,0.08);border:1px solid rgba(231,76,60,0.2);border-radius:10px">
+        <div style="font-size:12px;font-weight:700;color:var(--coral);margin-bottom:8px">⚠️ ANCAMAN TERIDENTIFIKASI</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">${n.ancaman.map(a=>`<span class="pill pill-red">${a}</span>`).join('')}</div>
+      </div>
+    ` : ''}
+    <div style="margin-top:16px">
+      <div class="card-title">📊 Timeline Inkubasi</div>
+      <div class="progress-wrap" style="margin-top:8px">
+        <div class="progress-label">
+          <span>Progres Inkubasi</span>
+          <span style="color:var(--text-muted)">${n.hari_inkubasi} / 60 hari (estimasi)</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width:${Math.min(n.hari_inkubasi/60*100,100)}%;background:linear-gradient(to right,var(--seafoam),var(--hatch-gold))"></div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+function closeModal(e) {
+  if (e.target === document.getElementById('modalOverlay')) {
+    document.getElementById('modalOverlay').classList.remove('open');
+  }
+}
+
+// ============================================================
+//  HATCHLINGS
+// ============================================================
+function renderHatchlings() {
+  const hatched = state.nests.filter(n => n.status === 'menetas' || n.status === 'dilepas');
+  const nursery = state.nests.filter(n => n.status === 'menetas');
+  const released = state.nests.filter(n => n.status === 'dilepas');
+
+  const totalHatch = state.nests.reduce((s,n) => s+(n.tukik_menetas||0), 0);
+  const totalRel = state.nests.reduce((s,n) => s+(n.tukik_dilepas||0), 0);
+  const totalNursery = totalHatch - totalRel;
+
+  document.getElementById('hs-hatched').textContent = totalHatch;
+  document.getElementById('hs-nursery').textContent = Math.max(0, totalNursery);
+  document.getElementById('hs-released').textContent = totalRel;
+  document.getElementById('hs-dead').textContent = 3; // demo
+
+  // Ready to hatch table
+  const readyNests = state.nests.filter(n => n.status === 'inkubasi' && n.hari_inkubasi > 50);
+  const tableEl = document.getElementById('hatchlingTable');
+  tableEl.innerHTML = readyNests.length ? `
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">
+      ${readyNests.length} sarang mendekati waktu penetasan (>50 hari inkubasi)
+    </div>
+    ${readyNests.map(n => `
+      <div class="alert-item medium" style="margin-bottom:8px">
+        <div class="alert-icon">🥚</div>
+        <div class="alert-body">
+          <div class="alert-title">${n.id}</div>
+          <div class="alert-desc">${n.lokasi} · ${n.hari_inkubasi} hari · ${n.telur} telur · ${n.suhu}°C</div>
+          <div class="alert-time">${getSpeciesBadge(n.spesies)}</div>
+        </div>
+      </div>
+    `).join('')}
+  ` : '<div style="color:var(--text-muted);font-size:13px;padding:10px">Tidak ada sarang mendekati penetasan</div>';
+
+  // Release log
+  const logEl = document.getElementById('releaseLog');
+  logEl.innerHTML = released.length ? released.map(n => `
+    <div class="alert-item low" style="margin-bottom:8px">
+      <div class="alert-icon">🌊</div>
+      <div class="alert-body">
+        <div class="alert-title">${n.id} · ${n.tukik_dilepas} tukik dilepas</div>
+        <div class="alert-desc">${n.lokasi} · HR: ${Math.round(n.tukik_menetas/n.telur*100)}%</div>
+        <div class="alert-time" style="font-family:'DM Mono',monospace">${n.tgl}</div>
+      </div>
+    </div>
+  `).join('')
+  : '<div style="color:var(--text-muted);font-size:13px;padding:10px">Belum ada pelepasan</div>';
+}
+
+// ============================================================
+//  KOBO API INTEGRATION
+// ============================================================
+async function fetchKoboData() {
+  const token = state.config.apiToken;
+  const uid = state.config.assetUid;
+  const platform = state.config.koboPlatform || 'https://kf.kobotoolbox.org';
+
+  if (!token || !uid) return null;
+
+  const url = `${platform}/api/v2/assets/${uid}/data/?format=json&limit=100`;
+  
+  const resp = await fetch(url, {
+    headers: { 'Authorization': `Token ${token}`, 'Accept': 'application/json' }
+  });
+
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+  return await resp.json();
+}
+
+function parseKoboSubmission(row) {
+  const tgl = (row.tanggal_survei || row._submission_time || '').split('T')[0];
+  const today = new Date();
+  const nestDate = new Date(tgl);
+  const hariInkubasi = Math.floor((today - nestDate) / (1000*60*60*24));
+
+  return {
+    id: row.kode_sarang || row._id || `KBO-${Math.random().toString(36).substr(2,6)}`,
+    lokasi: row.lokasi_pantai || '—',
+    spesies: row.jenis_penyu || 'tidak_yakin',
+    tgl: tgl,
+    telur: parseInt(row.jumlah_telur_awal) || 0,
+    suhu: parseFloat(row.suhu_sarang) || 29.0,
+    hari_inkubasi: hariInkubasi,
+    status: row.status_penetasan === 'sudah' ? (row['grp_pelepasan/tukik_dilepas'] === 'ya' ? 'dilepas' : 'menetas') : 'inkubasi',
+    petugas: row.nama_petugas || '—',
+    tukik_menetas: parseInt(row.jumlah_tukik_menetas) || 0,
+    tukik_dilepas: parseInt(row['grp_pelepasan/jumlah_tukik_dilepas']) || parseInt(row.jumlah_tukik_dilepas) || 0,
+    status_sarang: row.status_sarang || 'aman',
+    ancaman: row.gangguan_sarang ? row.gangguan_sarang.split(' ') : [],
+    relokasi: row.telur_dipindahkan === 'ya',
+    lat: row.gps_lokasi ? parseFloat(row.gps_lokasi.split(' ')[0]) : null,
+    lng: row.gps_lokasi ? parseFloat(row.gps_lokasi.split(' ')[1]) : null,
+  };
+}
+
+// ============================================================
+//  AUTO SYNC
+// ============================================================
+function startAutoSync() {
+  const interval = parseInt(state.config.syncInterval || 60);
+  state.countdown = interval;
+
+  // Reset intervals
+  if (state.intervalId) clearInterval(state.intervalId);
+  if (state.countdownId) clearInterval(state.countdownId);
+
+  updateCountdown(state.countdown, interval);
+
+  state.countdownId = setInterval(() => {
+    state.countdown--;
+    updateCountdown(state.countdown, interval);
+    if (state.countdown <= 0) {
+      state.countdown = interval;
+      syncData();
+    }
+  }, 1000);
+
+  // Initial sync
+  syncData();
+}
+
+function updateCountdown(current, total) {
+  const circ = 81.68;
+  const offset = circ * (1 - current / total);
+  const el = document.getElementById('countdownCircle');
+  const txt = document.getElementById('countdownText');
+  if (el) el.style.strokeDashoffset = offset;
+  if (txt) txt.textContent = current + 's';
+}
+
+async function syncData() {
+  if (state.syncing) return;
+  state.syncing = true;
+  setSyncing(true);
+
+  try {
+    if (state.config.apiToken && state.config.assetUid) {
+      const data = await fetchKoboData();
+      if (data && data.results && data.results.length > 0) {
+        state.nests = data.results.map(parseKoboSubmission);
+        setConnected(true);
+      } else if (data) {
+        setConnected(true);
+        // Keep demo data if no submissions yet
+      }
+    } else {
+      // Demo mode
+      simulateDemoUpdate();
+      setConnected(false, 'demo');
+    }
+
+    renderAll();
+    document.getElementById('lastSyncText').textContent = 'Sync: ' + new Date().toLocaleTimeString('id-ID');
+
+    // Flash KPI cards
+    document.querySelectorAll('.kpi-card').forEach((el,i) => {
+      setTimeout(() => el.classList.add('just-updated'), i * 80);
+      setTimeout(() => el.classList.remove('just-updated'), i * 80 + 1200);
+    });
+
+  } catch(err) {
+    console.warn('Sync error:', err.message);
+    setConnected(false, 'error');
+  }
+
+  state.syncing = false;
+  setSyncing(false);
+}
+
+function simulateDemoUpdate() {
+  // Slight variations in temperature to make it feel live
+  state.nests = state.nests.map(n => ({
+    ...n,
+    suhu: n.status === 'inkubasi' ? +(n.suhu + (Math.random()-0.5)*0.3).toFixed(1) : n.suhu,
+    hari_inkubasi: n.hari_inkubasi + (Math.random() > 0.9 ? 1 : 0)
+  }));
+}
+
+function setSyncing(on) {
+  const icon = document.getElementById('syncIcon');
+  if (icon) icon.style.animation = on ? 'spin 0.8s linear infinite' : 'none';
+  if (icon) icon.style.display = on ? 'inline-block' : 'inline';
+}
+
+function setConnected(ok, mode) {
+  const badge = document.getElementById('statusBadge');
+  const txt = document.getElementById('statusText');
+  state.connected = ok;
+
+  badge.className = 'status-badge ' + (ok ? 'connected' : mode === 'demo' ? 'syncing' : 'disconnected');
+  txt.textContent = ok ? 'Terhubung KoboToolbox' : mode === 'demo' ? 'Mode Demo' : 'Koneksi Gagal';
+}
+
+function manualSync() {
+  state.countdown = parseInt(state.config.syncInterval || 60);
+  syncData();
+}
+
+// ============================================================
+//  SETTINGS
+// ============================================================
+document.getElementById('koboPlatform').addEventListener('change', function() {
+  document.getElementById('customUrlGroup').style.display = this.value === 'custom' ? 'block' : 'none';
+});
+
+async function testConnection() {
+  const resultEl = document.getElementById('connTestResult');
+  resultEl.innerHTML = '<div class="spinner"></div> Menguji koneksi...';
+
+  const token = document.getElementById('apiToken').value;
+  const uid = document.getElementById('assetUid').value;
+  let platform = document.getElementById('koboPlatform').value;
+  if (platform === 'custom') platform = document.getElementById('customUrl').value;
+
+  if (!token || !uid) {
+    resultEl.innerHTML = '<span style="color:var(--coral)">❌ Isi API Token dan Asset UID terlebih dahulu</span>';
+    return;
+  }
+
+  try {
+    const resp = await fetch(`${platform}/api/v2/assets/${uid}/?format=json`, {
+      headers: { 'Authorization': `Token ${token}` }
+    });
+    if (resp.ok) {
+      const d = await resp.json();
+      resultEl.innerHTML = `<span style="color:#5dd47c">✅ Berhasil terhubung! Form: <strong>${d.name || uid}</strong> · ${d.deployment__submission_count || 0} submisi</span>`;
+    } else {
+      resultEl.innerHTML = `<span style="color:var(--coral)">❌ Error ${resp.status}: ${resp.statusText}. Periksa token dan UID.</span>`;
+    }
+  } catch(e) {
+    resultEl.innerHTML = `<span style="color:var(--coral)">❌ Gagal terhubung: ${e.message}. Pastikan CORS diizinkan.</span>`;
+  }
+}
+
+function saveSettings() {
+  let platform = document.getElementById('koboPlatform').value;
+  if (platform === 'custom') platform = document.getElementById('customUrl').value;
+
+  state.config = {
+    apiToken: document.getElementById('apiToken').value,
+    assetUid: document.getElementById('assetUid').value,
+    koboPlatform: platform,
+    syncInterval: document.getElementById('syncInterval').value,
+    tempMin: document.getElementById('tempMin').value,
+    tempMax: document.getElementById('tempMax').value,
+    maxIncubation: document.getElementById('maxIncubation').value,
+  };
+
+  try { localStorage.setItem('sipenyu_config', JSON.stringify(state.config)); } catch(e) {}
+
+  startAutoSync();
+  const btn = event.target;
+  btn.textContent = '✅ Tersimpan!';
+  setTimeout(() => btn.textContent = '💾 Simpan & Aktifkan', 2000);
+}
+
+// ============================================================
+//  FILE IMPORT
+// ============================================================
+function handleFileImport(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      let data;
+      if (file.name.endsWith('.json')) {
+        const parsed = JSON.parse(e.target.result);
+        data = parsed.results || parsed;
+      } else {
+        // Simple CSV parse
+        const lines = e.target.result.split('\n');
+        const headers = lines[0].split(',').map(h => h.trim().replace(/"/g,''));
+        data = lines.slice(1).filter(l => l.trim()).map(line => {
+          const vals = line.split(',').map(v => v.trim().replace(/"/g,''));
+          const obj = {};
+          headers.forEach((h,i) => obj[h] = vals[i]);
+          return obj;
+        });
+      }
+
+      if (Array.isArray(data) && data.length > 0) {
+        const imported = data.map(parseKoboSubmission);
+        state.nests = [...imported, ...state.nests.filter(n => !imported.find(i => i.id === n.id))];
+        renderAll();
+        document.getElementById('importResult').innerHTML = `<span style="color:#5dd47c">✅ Berhasil import ${imported.length} data dari ${file.name}</span>`;
+      } else {
+        document.getElementById('importResult').innerHTML = '<span style="color:var(--coral)">❌ Format file tidak sesuai atau data kosong</span>';
+      }
+    } catch(err) {
+      document.getElementById('importResult').innerHTML = `<span style="color:var(--coral)">❌ Error: ${err.message}</span>`;
+    }
+  };
+  reader.readAsText(file);
+}
+
+// ============================================================
+//  MANUAL NEST ADD
+// ============================================================
+function addManualNest() {
+  const kode = document.getElementById('m-kode').value.trim();
+  const lokasi = document.getElementById('m-lokasi').value.trim();
+  const spesies = document.getElementById('m-spesies').value;
+  const telur = parseInt(document.getElementById('m-telur').value) || 0;
+  const tgl = document.getElementById('m-tanggal').value;
+  const suhu = parseFloat(document.getElementById('m-suhu').value) || 29.0;
+  const petugas = document.getElementById('m-petugas').value.trim();
+
+  const res = document.getElementById('manualResult');
+
+  if (!kode || !lokasi || !tgl) {
+    res.innerHTML = '<span style="color:var(--coral)">❌ Kode sarang, lokasi, dan tanggal wajib diisi</span>';
+    return;
+  }
+
+  if (state.nests.find(n => n.id === kode)) {
+    res.innerHTML = '<span style="color:var(--coral)">❌ Kode sarang sudah ada</span>';
+    return;
+  }
+
+  const today = new Date();
+  const nestDate = new Date(tgl);
+  const hari_inkubasi = Math.floor((today - nestDate) / (1000*60*60*24));
+
+  state.nests.unshift({
+    id: kode,
+    lokasi, spesies, tgl, telur, suhu,
+    hari_inkubasi: Math.max(0, hari_inkubasi),
+    status: 'inkubasi',
+    petugas: petugas || 'Manual',
+    tukik_menetas: 0,
+    tukik_dilepas: 0,
+    status_sarang: 'aman',
+    ancaman: [],
+    relokasi: false,
+  });
+
+  renderAll();
+  res.innerHTML = `<span style="color:#5dd47c">✅ Sarang ${kode} berhasil ditambahkan</span>`;
+
+  // Reset form
+  document.getElementById('m-kode').value = '';
+  document.getElementById('m-lokasi').value = '';
+  document.getElementById('m-telur').value = '';
+  document.getElementById('m-suhu').value = '';
+  document.getElementById('m-petugas').value = '';
+}
+
+// Incubation stats
+function renderIncubationStats() {
+  const el = document.getElementById('incubationStats');
+  if (!el) return;
+  const inkubasi = state.nests.filter(n => n.status === 'inkubasi');
+  const avgSuhu = inkubasi.length ? (inkubasi.reduce((s,n) => s+n.suhu,0)/inkubasi.length).toFixed(1) : '—';
+  const avgHari = inkubasi.length ? Math.round(inkubasi.reduce((s,n) => s+n.hari_inkubasi,0)/inkubasi.length) : '—';
+
+  el.innerHTML = `
+    <div class="grid-2" style="gap:10px;margin-bottom:14px">
+      <div class="mini-stat"><div class="mini-stat-val" style="color:var(--hatch-gold)">${avgSuhu}°C</div><div class="mini-stat-key">Suhu Rata-rata</div></div>
+      <div class="mini-stat"><div class="mini-stat-val" style="color:var(--seafoam)">${avgHari}</div><div class="mini-stat-key">Hari Inkubasi Avg</div></div>
+    </div>
+    ${inkubasi.slice(0,4).map(n => `
+      <div class="progress-wrap">
+        <div class="progress-label">
+          <span style="font-size:11px;font-family:'DM Mono',monospace">${n.id}</span>
+          <span>${n.hari_inkubasi}/60 hr</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width:${Math.min(n.hari_inkubasi/60*100,100)}%;background:${n.hari_inkubasi>50?'var(--hatch-gold)':'var(--seafoam)'}"></div>
+        </div>
+      </div>
+    `).join('')}
+  `;
+}
+
+// Problem nests
+function renderProblemNests() {
+  const el = document.getElementById('problemNests');
+  if (!el) return;
+  const tempMin = parseFloat(document.getElementById('tempMin')?.value || 25);
+  const tempMax = parseFloat(document.getElementById('tempMax')?.value || 34);
+
+  const problems = state.nests.filter(n =>
+    n.status === 'inkubasi' && (
+      n.suhu < tempMin || n.suhu > tempMax ||
+      (n.ancaman && n.ancaman.length > 0) ||
+      n.hari_inkubasi > 75
+    )
+  );
+
+  el.innerHTML = problems.length ? problems.map(n => `
+    <div class="alert-item ${n.suhu > tempMax || n.suhu < tempMin ? 'high' : 'medium'}" style="margin-bottom:8px">
+      <div class="alert-icon">${n.suhu > tempMax ? '🌡️' : n.ancaman?.length ? '⚠️' : '⏰'}</div>
+      <div class="alert-body">
+        <div class="alert-title">${n.id}</div>
+        <div class="alert-desc">${n.suhu}°C · ${n.hari_inkubasi} hari · ${n.lokasi}</div>
+      </div>
+    </div>
+  `).join('')
+  : '<div style="color:#5dd47c;font-size:13px;padding:10px">✅ Semua sarang dalam kondisi normal</div>';
+}
+
+// Override renderNestsTable to also render sub-sections
+const _origRenderAll = renderAll;
+function renderAll() {
+  renderKPIs();
+  renderRecentActivity();
+  renderAlerts();
+  renderSpeciesChart();
+  renderHatchChart();
+  renderMapDots();
+  renderNestsTable();
+  renderHatchlings();
+  renderIncubationStats();
+  renderProblemNests();
+  updateNestBadge();
+}
+
+// Init call again to render stats
+setTimeout(renderAll, 100);
+</script>
+</body>
+</html>
